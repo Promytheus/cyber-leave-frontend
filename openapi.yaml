@@ -1,0 +1,388 @@
+openapi: 3.0.3
+info:
+  title: Cyber Leave Management API
+  description: |
+    RESTful API for the HR Presence and Leave Management System.
+    Provides endpoints for creating, retrieving, approving, rejecting, and tracking employee leave requests.
+  version: 1.0.0
+  contact:
+    name: Cyber Leave Engineering Team
+    email: support@cyberleave.com
+  license:
+    name: Apache 2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0.html
+
+servers:
+  - url: http://localhost:8080
+    description: Local Development Server
+
+tags:
+  - name: Leave Requests
+    description: Operations related to employee leave requests and approvals
+  - name: Monitoring & Actuator
+    description: Application health, metrics, and runtime telemetry endpoints
+
+paths:
+  /api/v1/leaves:
+    get:
+      tags:
+        - Leave Requests
+      summary: List all leave requests
+      description: Retrieve all leave requests with optional filtering by status (PENDING, APPROVED, REJECTED, CANCELLED).
+      operationId: getAllLeaves
+      parameters:
+        - name: status
+          in: query
+          description: Filter leave requests by status
+          required: false
+          schema:
+            $ref: '#/components/schemas/LeaveStatus'
+      responses:
+        '200':
+          description: Successfully retrieved leave requests
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/LeaveRequest'
+              example:
+                - id: 1
+                  employeeId: "EMP-001"
+                  employeeName: "Alice Smith"
+                  leaveType: "ANNUAL"
+                  status: "APPROVED"
+                  startDate: "2026-11-01"
+                  endDate: "2026-11-05"
+                  reason: "Annual family vacation"
+                  createdAt: "2026-10-10T09:30:00"
+                - id: 2
+                  employeeId: "EMP-002"
+                  employeeName: "Bob Jones"
+                  leaveType: "SICK"
+                  status: "PENDING"
+                  startDate: "2026-10-15"
+                  endDate: "2026-10-16"
+                  reason: "Doctor appointment"
+                  createdAt: "2026-10-12T14:15:00"
+
+    post:
+      tags:
+        - Leave Requests
+      summary: Create a new leave request
+      description: Submit a new employee leave request. Automatically sets initial status to PENDING.
+      operationId: createLeave
+      requestBody:
+        description: Details of the leave request to create
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateLeaveRequestDto'
+            example:
+              employeeId: "EMP-003"
+              employeeName: "Charlie Brown"
+              leaveType: "ANNUAL"
+              startDate: "2026-12-20"
+              endDate: "2026-12-28"
+              reason: "Winter holidays"
+      responses:
+        '201':
+          description: Leave request successfully created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LeaveRequest'
+        '400':
+          description: Invalid request payload or validation failed (e.g. endDate is before startDate)
+          content:
+            application/json:
+              schema:
+                type: string
+              example: "End date cannot be before start date"
+
+  /api/v1/leaves/{id}:
+    get:
+      tags:
+        - Leave Requests
+      summary: Get leave request by ID
+      description: Retrieve details of a specific leave request by its unique identifier.
+      operationId: getLeaveById
+      parameters:
+        - name: id
+          in: path
+          description: Unique ID of the leave request
+          required: true
+          schema:
+            type: integer
+            format: int64
+          example: 1
+      responses:
+        '200':
+          description: Leave request found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LeaveRequest'
+        '404':
+          description: Leave request not found
+
+    delete:
+      tags:
+        - Leave Requests
+      summary: Delete a leave request
+      description: Permanently remove a leave request by its ID.
+      operationId: deleteLeave
+      parameters:
+        - name: id
+          in: path
+          description: Unique ID of the leave request to delete
+          required: true
+          schema:
+            type: integer
+            format: int64
+          example: 1
+      responses:
+        '204':
+          description: Leave request deleted successfully
+        '404':
+          description: Leave request not found
+
+  /api/v1/leaves/employee/{employeeId}:
+    get:
+      tags:
+        - Leave Requests
+      summary: Get leave requests by employee ID
+      description: Retrieve all leave history and requests submitted by a specific employee.
+      operationId: getLeavesByEmployee
+      parameters:
+        - name: employeeId
+          in: path
+          description: Identifier of the employee (e.g. EMP-001)
+          required: true
+          schema:
+            type: string
+          example: "EMP-001"
+      responses:
+        '200':
+          description: Successfully retrieved employee leave requests
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/LeaveRequest'
+
+  /api/v1/leaves/{id}/status:
+    patch:
+      tags:
+        - Leave Requests
+      summary: Update leave request status
+      description: Update the workflow status of an existing leave request (e.g. approve, reject, or cancel).
+      operationId: updateStatus
+      parameters:
+        - name: id
+          in: path
+          description: Unique ID of the leave request
+          required: true
+          schema:
+            type: integer
+            format: int64
+          example: 1
+      requestBody:
+        description: New status to assign
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateLeaveStatusDto'
+            example:
+              status: "APPROVED"
+      responses:
+        '200':
+          description: Leave request status updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LeaveRequest'
+        '400':
+          description: Invalid status or validation error
+        '404':
+          description: Leave request not found
+
+  /actuator:
+    get:
+      tags:
+        - Monitoring & Actuator
+      summary: Actuator discovery root
+      description: Returns discovery links for all exposed Spring Boot management endpoints.
+      responses:
+        '200':
+          description: Actuator root links
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /actuator/health:
+    get:
+      tags:
+        - Monitoring & Actuator
+      summary: Application health check
+      description: Returns the health status of the application and components.
+      responses:
+        '200':
+          description: Application health summary
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "UP"
+
+  /actuator/info:
+    get:
+      tags:
+        - Monitoring & Actuator
+      summary: Application information
+      description: General information about application build and environment.
+      responses:
+        '200':
+          description: Application info
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /actuator/metrics:
+    get:
+      tags:
+        - Monitoring & Actuator
+      summary: Application metrics
+      description: Lists available telemetry metrics for CPU, JVM memory, HTTP requests, and threads.
+      responses:
+        '200':
+          description: List of available metric names
+          content:
+            application/json:
+              schema:
+                type: object
+
+components:
+  schemas:
+    LeaveRequest:
+      type: object
+      required:
+        - id
+        - employeeId
+        - employeeName
+        - leaveType
+        - status
+        - startDate
+        - endDate
+        - createdAt
+      properties:
+        id:
+          type: integer
+          format: int64
+          description: Unique numeric ID of the leave request
+          example: 1
+        employeeId:
+          type: string
+          description: Identifier of the employee
+          example: "EMP-001"
+        employeeName:
+          type: string
+          description: Full name of the employee
+          example: "Alice Smith"
+        leaveType:
+          $ref: '#/components/schemas/LeaveType'
+        status:
+          $ref: '#/components/schemas/LeaveStatus'
+        startDate:
+          type: string
+          format: date
+          description: Starting date of the leave
+          example: "2026-11-01"
+        endDate:
+          type: string
+          format: date
+          description: Ending date of the leave
+          example: "2026-11-05"
+        reason:
+          type: string
+          nullable: true
+          description: Optional note explaining the reason for leave
+          example: "Annual family vacation"
+        createdAt:
+          type: string
+          format: date-time
+          description: Timestamp when the request was submitted
+          example: "2026-10-13T10:15:30"
+
+    CreateLeaveRequestDto:
+      type: object
+      required:
+        - employeeId
+        - employeeName
+        - leaveType
+        - startDate
+        - endDate
+      properties:
+        employeeId:
+          type: string
+          description: Employee identifier
+          example: "EMP-003"
+        employeeName:
+          type: string
+          description: Full name of the employee
+          example: "Charlie Brown"
+        leaveType:
+          $ref: '#/components/schemas/LeaveType'
+        startDate:
+          type: string
+          format: date
+          description: Starting date of the requested leave
+          example: "2026-12-20"
+        endDate:
+          type: string
+          format: date
+          description: Ending date of the requested leave
+          example: "2026-12-28"
+        reason:
+          type: string
+          nullable: true
+          description: Optional reason or notes
+          example: "Winter holidays"
+
+    UpdateLeaveStatusDto:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          $ref: '#/components/schemas/LeaveStatus'
+
+    LeaveType:
+      type: string
+      description: Category of leave
+      enum:
+        - ANNUAL
+        - SICK
+        - UNPAID
+        - MATERNITY
+        - PATERNITY
+        - REMOTE_WORK
+      example: "ANNUAL"
+
+    LeaveStatus:
+      type: string
+      description: Approval state of the leave request
+      enum:
+        - PENDING
+        - APPROVED
+        - REJECTED
+        - CANCELLED
+      example: "PENDING"
